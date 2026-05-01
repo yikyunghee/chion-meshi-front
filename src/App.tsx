@@ -13,6 +13,7 @@ type Spot = {
   author: string;
 };
 
+const API = "https://chion-meshi-map-production.up.railway.app/api/spots";
 const initForm = { station: "", name: "", menu: "", price: "", rating: 0, comment: "", url: "", author: "" };
 
 function App() {
@@ -20,29 +21,28 @@ function App() {
   const [activeFilter, setActiveFilter] = useState("all");
   const [form, setForm] = useState(initForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [editSpot, setEditSpot] = useState<Spot | null>(null);
 
   useEffect(() => {
-    fetch("https://chion-meshi-map-production.up.railway.app/api/spots")
-      .then((res) => res.json())
-      .then((data) => setSpots(data));
+    fetch(API).then((res) => res.json()).then((data) => setSpots(data));
   }, []);
 
   const stations = [...new Set(spots.map((s) => s.station))];
   const filtered = activeFilter === "all" ? spots : spots.filter((s) => s.station === activeFilter);
 
-  const validate = () => {
+  const validate = (f: typeof initForm) => {
     const e: Record<string, string> = {};
-    if (!form.station) e.station = "駅名を入力してください";
-    if (!form.name) e.name = "お店の名前を入力してください";
-    if (!form.menu) e.menu = "メニューを入力してください";
-    if (!form.rating) e.rating = "評価を選んでください";
+    if (!f.station) e.station = "駅名を入力してください";
+    if (!f.name) e.name = "お店の名前を入力してください";
+    if (!f.menu) e.menu = "メニューを入力してください";
+    if (!f.rating) e.rating = "評価を選んでください";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
   const handleSubmit = async () => {
-    if (!validate()) return;
-    const res = await fetch("https://chion-meshi-map-production.up.railway.app/api/spots", {
+    if (!validate(form)) return;
+    const res = await fetch(API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
@@ -53,9 +53,31 @@ function App() {
     setErrors({});
   };
 
-  const stars = (n: number) =>
+  const handleDelete = async (id: number) => {
+    if (!confirm("削除しますか？")) return;
+    await fetch(`${API}/${id}`, { method: "DELETE" });
+    setSpots(spots.filter((s) => s.id !== id));
+  };
+
+  const handleUpdate = async () => {
+    if (!editSpot) return;
+    if (!validate(editSpot)) return;
+    const res = await fetch(`${API}/${editSpot.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editSpot),
+    });
+    const updated = await res.json();
+    setSpots(spots.map((s) => s.id === updated.id ? updated : s));
+    setEditSpot(null);
+    setErrors({});
+  };
+
+  const stars = (n: number, onClick?: (i: number) => void) =>
     [1,2,3,4,5].map((i) => (
-      <span key={i} style={{ color: i <= n ? "#EF9F27" : "#ccc" }}>★</span>
+      <span key={i} className={`star ${i <= n ? "on" : ""}`}
+        onClick={() => onClick && onClick(i)}
+        style={{ cursor: onClick ? "pointer" : "default" }}>★</span>
     ));
 
   return (
@@ -94,14 +116,8 @@ function App() {
           </div>
           <div className="field">
             <label>価格</label>
-          <input
-            placeholder="例: 950"
-            value={form.price.replace("円", "")}
-            onChange={(e) => {
-              const val = e.target.value.replace(/[^0-9]/g, "");
-              setForm({ ...form, price: val ? val + "円" : "" });
-            }}
-          />
+            <input placeholder="例: 950" value={form.price.replace("円", "")}
+              onChange={(e) => { const val = e.target.value.replace(/[^0-9]/g, ""); setForm({ ...form, price: val ? val + "円" : "" }); }} />
           </div>
           <div className="field">
             <label>投稿者名</label>
@@ -122,9 +138,7 @@ function App() {
         </div>
         <div className="stars-row">
           <label>評価<span className="req">*</span></label>
-          {[1,2,3,4,5].map((n) => (
-            <span key={n} className={`star ${n <= form.rating ? "on" : ""}`} onClick={() => setForm({ ...form, rating: n })}>★</span>
-          ))}
+          {stars(form.rating, (n) => setForm({ ...form, rating: n }))}
           <span className="err-msg">{errors.rating}</span>
         </div>
         <button className="submit-btn" onClick={handleSubmit}>登録する</button>
@@ -145,9 +159,72 @@ function App() {
               <span className="card-author">{s.author ? `投稿: ${s.author}` : "匿名"}</span>
               {s.url && <a className="card-link" href={s.url} target="_blank" rel="noreferrer">リンクを見る →</a>}
             </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <button onClick={() => { setEditSpot(s); setErrors({}); }}
+                style={{ flex: 1, padding: "5px", fontSize: 12, border: "1px solid #ddd", borderRadius: 6, background: "white", cursor: "pointer" }}>編集</button>
+              <button onClick={() => handleDelete(s.id)}
+                style={{ flex: 1, padding: "5px", fontSize: 12, border: "1px solid #ffcccc", borderRadius: 6, background: "#fff5f5", color: "#e24b4a", cursor: "pointer" }}>削除</button>
+            </div>
           </div>
         ))}
       </div>
+
+      {editSpot && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
+          <div style={{ background: "white", borderRadius: 12, padding: 24, width: "90%", maxWidth: 500, maxHeight: "90vh", overflowY: "auto" }}>
+            <h3 style={{ marginBottom: 16 }}>編集</h3>
+            <div className="row2">
+              <div className="field">
+                <label>最寄り駅<span className="req">*</span></label>
+                <input className={errors.station ? "error" : ""} value={editSpot.station} onChange={(e) => setEditSpot({ ...editSpot, station: e.target.value })} />
+                <span className="err-msg">{errors.station}</span>
+              </div>
+              <div className="field">
+                <label>お店の名前<span className="req">*</span></label>
+                <input className={errors.name ? "error" : ""} value={editSpot.name} onChange={(e) => setEditSpot({ ...editSpot, name: e.target.value })} />
+                <span className="err-msg">{errors.name}</span>
+              </div>
+            </div>
+            <div className="row3">
+              <div className="field">
+                <label>メニュー<span className="req">*</span></label>
+                <input className={errors.menu ? "error" : ""} value={editSpot.menu} onChange={(e) => setEditSpot({ ...editSpot, menu: e.target.value })} />
+                <span className="err-msg">{errors.menu}</span>
+              </div>
+              <div className="field">
+                <label>価格</label>
+                <input value={editSpot.price.replace("円", "")}
+                  onChange={(e) => { const val = e.target.value.replace(/[^0-9]/g, ""); setEditSpot({ ...editSpot, price: val ? val + "円" : "" }); }} />
+              </div>
+              <div className="field">
+                <label>投稿者名</label>
+                <input value={editSpot.author} onChange={(e) => setEditSpot({ ...editSpot, author: e.target.value })} />
+              </div>
+            </div>
+            <div className="row1">
+              <div className="field">
+                <label>URL</label>
+                <input value={editSpot.url} onChange={(e) => setEditSpot({ ...editSpot, url: e.target.value })} />
+              </div>
+            </div>
+            <div className="row1">
+              <div className="field">
+                <label>コメント</label>
+                <textarea value={editSpot.comment} onChange={(e) => setEditSpot({ ...editSpot, comment: e.target.value })} />
+              </div>
+            </div>
+            <div className="stars-row" style={{ marginBottom: 16 }}>
+              <label>評価<span className="req">*</span></label>
+              {stars(editSpot.rating, (n) => setEditSpot({ ...editSpot, rating: n }))}
+              <span className="err-msg">{errors.rating}</span>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={handleUpdate} style={{ flex: 1, padding: 10, background: "#E1F5EE", border: "1px solid #5DCAA5", borderRadius: 8, cursor: "pointer", fontWeight: 500 }}>保存</button>
+              <button onClick={() => { setEditSpot(null); setErrors({}); }} style={{ flex: 1, padding: 10, background: "white", border: "1px solid #ddd", borderRadius: 8, cursor: "pointer" }}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
