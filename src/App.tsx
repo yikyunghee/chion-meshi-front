@@ -22,7 +22,7 @@ function App() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    fetch("http://localhost:8080/api/spots")
+    fetch("https://chion-meshi-map-production.up.railway.app")
       .then((res) => res.json())
       .then((data) => setSpots(data));
   }, []);
@@ -42,7 +42,7 @@ function App() {
 
   const handleSubmit = async () => {
     if (!validate()) return;
-    const res = await fetch("http://localhost:8080/api/spots", {
+    const res = await fetch("https://chion-meshi-map-production.up.railway.app", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
