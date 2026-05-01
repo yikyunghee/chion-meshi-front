@@ -22,7 +22,7 @@ function App() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    fetch("https://chion-meshi-map-production.up.railway.app")
+    fetch("https://chion-meshi-map-production.up.railway.app/api/spots")
       .then((res) => res.json())
       .then((data) => setSpots(data));
   }, []);
@@ -42,7 +42,7 @@ function App() {
 
   const handleSubmit = async () => {
     if (!validate()) return;
-    const res = await fetch("https://chion-meshi-map-production.up.railway.app", {
+    const res = await fetch("https://chion-meshi-map-production.up.railway.app/api/spots", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),
